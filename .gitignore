@@ -1,0 +1,14 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+.env
+appsettings.Development.json
+
+# WorkBuddy workspace files
+.workbuddy/
+
+# Temp / debug output files
+api_search_err.txt
+api_search_out.txt

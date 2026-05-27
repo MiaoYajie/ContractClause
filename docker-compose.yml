@@ -1,0 +1,79 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: src/ContractClause.Api/Dockerfile
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - Database__Provider=PostgreSQL
+      - Database__ConnectionString=Host=db;Port=5432;Database=contractclause;Username=app;Password=secret
+      - VectorStore__Provider=Qdrant
+      - VectorStore__Qdrant__Endpoint=http://qdrant:6333
+      - Ai__EmbeddingModel__ApiKey=${EMBEDDING_API_KEY:-}
+      - Ai__TextModel__ApiKey=${TEXT_API_KEY:-}
+      - FatianshiTemplateSync__Enabled=true
+      - FatianshiTemplateSync__IntervalHours=4
+      - FatianshiTemplateSync__ApiKey=${FATIANSHI_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+  mcp-http:
+    build:
+      context: .
+      dockerfile: src/ContractClause.Mcp/Dockerfile
+    ports:
+      - "5001:8080"
+    environment:
+      - Mcp__Transport=http-sse
+      - Mcp__HttpPort=8080
+      - Mcp__HttpPath=/mcp
+      - Database__Provider=PostgreSQL
+      - Database__ConnectionString=Host=db;Port=5432;Database=contractclause;Username=app;Password=secret
+      - VectorStore__Provider=Qdrant
+      - VectorStore__Qdrant__Endpoint=http://qdrant:6333
+      - Ai__EmbeddingModel__ApiKey=${EMBEDDING_API_KEY:-}
+      - Ai__TextModel__ApiKey=${TEXT_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    depends_on:
+      db:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: contractclause
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d contractclause"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+
+volumes:
+  pgdata:
+  qdrant_storage:

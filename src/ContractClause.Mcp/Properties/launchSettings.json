@@ -1,0 +1,21 @@
+{
+  "profiles": {
+    "stdio": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Mcp__Transport": "stdio",
+        "MCP_API_KEY": "sk-dev-replace-me"
+      }
+    },
+    "http-sse": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Mcp__Transport": "http-sse",
+        "Mcp__HttpPort": "5001"
+      },
+      "applicationUrl": "http://localhost:5001"
+    }
+  }
+}

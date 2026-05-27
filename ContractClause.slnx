@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ContractClause.Api/ContractClause.Api.csproj" />
+    <Project Path="src/ContractClause.Application/ContractClause.Application.csproj" />
+    <Project Path="src/ContractClause.Domain/ContractClause.Domain.csproj" />
+    <Project Path="src/ContractClause.Infrastructure/ContractClause.Infrastructure.csproj" />
+    <Project Path="src/ContractClause.Mcp/ContractClause.Mcp.csproj" />
+  </Folder>
+</Solution>
