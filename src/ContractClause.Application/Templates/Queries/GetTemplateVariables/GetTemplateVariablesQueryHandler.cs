@@ -7,8 +7,9 @@ using MediatR;
 
 namespace ContractClause.Application.Templates.Queries.GetTemplateVariables;
 
-public class GetTemplateVariablesQueryHandler(ITemplateRepository templates)
-    : IRequestHandler<GetTemplateVariablesQuery, IReadOnlyList<VariableInfoDto>?>
+public class GetTemplateVariablesQueryHandler(
+    ITemplateRepository templates,
+    IClauseRepository clauses) : IRequestHandler<GetTemplateVariablesQuery, IReadOnlyList<VariableInfoDto>?>
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -17,11 +18,18 @@ public class GetTemplateVariablesQueryHandler(ITemplateRepository templates)
         var template = await templates.GetByIdWithOutlineAsync(request.TemplateId, ct);
         if (template is null) return null;
 
-        var names = new HashSet<string>(VariableHelper.Extract(template.ContentMarkdown));
+        var names = new HashSet<string>();
         if (template.Outline is not null)
         {
             var items = JsonSerializer.Deserialize<List<OutlineItem>>(template.Outline.OutlineJson, JsonOptions) ?? [];
             CollectFromOutline(items, names);
+        }
+
+        var clauseList = await clauses.ListByTemplateIdAsync(template.Id, ct);
+        foreach (var clause in clauseList)
+        {
+            foreach (var v in VariableHelper.Extract(clause.Text))
+                names.Add(v);
         }
 
         return names.OrderBy(n => n).Select(n => new VariableInfoDto(n, Describe(n), true)).ToList();

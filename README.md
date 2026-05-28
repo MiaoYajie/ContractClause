@@ -45,10 +45,13 @@ dotnet run --project src/ContractClause.Api
 
 ### 4. 创建 API Key
 
+使用 `AuthServer`（OpenID Connect）签发的 Bearer access token；`ownerId` 取自 token 的 `sub` 声明。
+
 ```bash
 curl -X POST http://localhost:5000/api/v1/apikeys \
+  -H "Authorization: Bearer <access_token>" \
   -H "Content-Type: application/json" \
-  -d "{\"ownerId\":\"00000000-0000-0000-0000-000000000001\"}"
+  -d "{\"ownerType\":\"User\"}"
 ```
 
 ### 5. MCP 接入
@@ -111,24 +114,23 @@ docker-compose up -d mcp-http
 
 HTTP 模式在每次请求时校验 `X-Api-Key` 请求头，与 REST API 共用同一套 ApiKeys 表。
 
-## 法天使模板自动同步
+## 法天使模板元数据同步
 
-API 启动后会运行后台任务（`TemplateSyncBackgroundService`），默认每 **4 小时** 从法天使拉取增量模板并入库：
+详见 [模板元数据同步设计.md](./模板元数据同步设计.md)。API 启动后由 `TemplateSyncBackgroundService` 默认 **每 24 小时** 执行一次：
 
-1. `GET https://tsapi.fatianshi.cn/template/search?updatedAfter=...`（游标见表 `template_sync_state`）
-2. `GET https://tsapi.fatianshi.cn/template/{id}` 获取 HTML 正文
-3. 写入 `templates.ContentHtml`，并走 HTML→Markdown→大纲→条款→向量 加工流程
+1. `GET https://contentadmin.fatianshi.cn/content/ForReview/FindUpdatedTemplates?size=50&page=0&recommend=true`
+2. 以库中 `templates.SourceUpdatedAt` 最大值为水位；列表按 `PublishedOn` 倒序，遇 `PublishedOn <= 水位` 即停止翻页
+3. 无水位时全量同步；字段映射写入 `templates`（含 `Alias`），并更新向量索引
 
-配置（`appsettings.json` → `FatianshiTemplateSync`）：
+配置（`FatianshiTemplateSync`）：
 
 | 项 | 说明 |
 |----|------|
-| `Enabled` | 是否启用，默认 `true` |
-| `IntervalHours` | 同步间隔，默认 `4` |
-| `ApiKey` / `ApiKeyHeader` | 若接口需鉴权则配置 |
-| `SearchUpdatedAfterParameter` | search 接口时间参数名，默认 `updatedAfter` |
+| `ApiKey` | Bearer Token（必填，与设计文档一致） |
+| `IntervalHours` | 默认 `24` |
+| `PageSize` | 默认 `50`，page 从 0 起 |
 
-已有 PostgreSQL 库请执行 `scripts/migrate-fatianshi-sync.sql` 增加新列与同步状态表。
+HTML 正文导入仍走 `POST /api/v1/import/template`（条款入库）。已有库请执行 `scripts/migrate-fatianshi-sync.sql`。
 
 ## 项目结构
 

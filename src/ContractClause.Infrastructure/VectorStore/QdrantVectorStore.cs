@@ -10,7 +10,7 @@ namespace ContractClause.Infrastructure.VectorStore;
 public class QdrantVectorStore(IOptions<VectorStoreOptions> options, ILogger<QdrantVectorStore> logger)
     : IVectorStore
 {
-    private const string TemplateCollection = "templates";
+    private const string TemplateCollection = "templatemeta";
     private const string ClauseCollection = "clauses";
 
     private QdrantClient? _client;
@@ -43,7 +43,8 @@ public class QdrantVectorStore(IOptions<VectorStoreOptions> options, ILogger<Qdr
         var collections = await Client.ListCollectionsAsync(cancellationToken: ct);
         if (collections.Contains(name)) return;
 
-        await Client.CreateCollectionAsync(name, new VectorParams { Size = 1536, Distance = Distance.Cosine }, cancellationToken: ct);
+        var size = (ulong)Math.Max(1, _options.VectorSize);
+        await Client.CreateCollectionAsync(name, new VectorParams { Size = size, Distance = Distance.Cosine }, cancellationToken: ct);
     }
 
     public async Task UpsertTemplateAsync(Guid id, float[] vector, IDictionary<string, object> payload, CancellationToken ct = default)

@@ -15,6 +15,4 @@ public record TemplateImportRequest(
     IReadOnlyList<string> Tags,
     bool IsOfficial,
     Guid? OwnerId,
-    string? ExternalId = null,
-    DateTime? SourceUpdatedAt = null,
     Guid? ExistingTemplateId = null);

@@ -30,10 +30,6 @@ public class TemplateContentImporter(
             template.Tags = request.Tags.ToList();
             template.Summary = markdown.Length > 200 ? markdown[..200] : markdown;
             template.Scenarios = request.Title;
-            template.ContentHtml = request.HtmlContent;
-            template.ContentMarkdown = markdown;
-            template.ExternalId = request.ExternalId ?? template.ExternalId;
-            template.SourceUpdatedAt = request.SourceUpdatedAt ?? template.SourceUpdatedAt;
             template.IsOfficial = request.IsOfficial;
             template.UpdatedAt = now;
             template.Version++;
@@ -60,10 +56,6 @@ public class TemplateContentImporter(
                 Tags = request.Tags.ToList(),
                 Summary = markdown.Length > 200 ? markdown[..200] : markdown,
                 Scenarios = request.Title,
-                ContentHtml = request.HtmlContent,
-                ContentMarkdown = markdown,
-                ExternalId = request.ExternalId,
-                SourceUpdatedAt = request.SourceUpdatedAt,
                 IsOfficial = request.IsOfficial,
                 OwnerId = request.OwnerId,
                 CreatedAt = now,

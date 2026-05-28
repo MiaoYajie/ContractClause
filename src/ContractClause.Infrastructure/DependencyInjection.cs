@@ -1,6 +1,7 @@
 using ContractClause.Application.Common.Interfaces;
 using ContractClause.Application.Options;
 using ContractClause.Infrastructure.Ai;
+using ContractClause.Infrastructure.Blob;
 using ContractClause.Infrastructure.External.Fatianshi;
 using ContractClause.Infrastructure.Options;
 using ContractClause.Infrastructure.Persistence;
@@ -20,6 +21,7 @@ public static class DependencyInjection
         services.Configure<VectorStoreOptions>(configuration.GetSection(VectorStoreOptions.SectionName));
         services.Configure<AiOptions>(configuration.GetSection(AiOptions.SectionName));
         services.Configure<FatianshiTemplateSyncOptions>(configuration.GetSection(FatianshiTemplateSyncOptions.SectionName));
+        services.Configure<TemplateBlobOptions>(configuration.GetSection(TemplateBlobOptions.SectionName));
 
         var dbOptions = configuration.GetSection(DatabaseOptions.SectionName).Get<DatabaseOptions>()
             ?? new DatabaseOptions();
@@ -43,17 +45,18 @@ public static class DependencyInjection
             var syncOptions = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<FatianshiTemplateSyncOptions>>().Value;
             client.BaseAddress = new Uri(syncOptions.BaseUrl.TrimEnd('/') + "/");
             client.Timeout = TimeSpan.FromMinutes(5);
-            if (string.IsNullOrWhiteSpace(syncOptions.ApiKey) || string.IsNullOrWhiteSpace(syncOptions.ApiKeyHeader))
-                return;
-
-            if (syncOptions.ApiKeyHeader.Equals("Authorization", StringComparison.OrdinalIgnoreCase))
+            if (!string.IsNullOrWhiteSpace(syncOptions.ApiKey))
+            {
                 client.DefaultRequestHeaders.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", syncOptions.ApiKey);
-            else
-                client.DefaultRequestHeaders.Add(syncOptions.ApiKeyHeader, syncOptions.ApiKey);
+            }
         });
         services.AddSingleton<IVectorStore, QdrantVectorStore>();
         services.AddSingleton<IEmbeddingService, OpenAiEmbeddingService>();
+        services.AddSingleton<ITextGenerationService, OpenAiTextGenerationService>();
+        services.AddSingleton<AzureTemplateBlobStorage>();
+        services.AddSingleton<ITemplateSourceBlobReader>(sp => sp.GetRequiredService<AzureTemplateBlobStorage>());
+        services.AddSingleton<ITemplateProcessedBlobWriter>(sp => sp.GetRequiredService<AzureTemplateBlobStorage>());
 
         var aiOptions = configuration.GetSection(AiOptions.SectionName).Get<AiOptions>() ?? new AiOptions();
         services.AddHttpClient("openai", client =>
@@ -62,6 +65,14 @@ public static class DependencyInjection
             if (!string.IsNullOrWhiteSpace(aiOptions.EmbeddingModel.ApiKey))
                 client.DefaultRequestHeaders.Authorization =
                     new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", aiOptions.EmbeddingModel.ApiKey);
+        });
+
+        services.AddHttpClient("openai-text", client =>
+        {
+            client.BaseAddress = new Uri(aiOptions.TextModel.BaseUrl.TrimEnd('/') + "/");
+            if (!string.IsNullOrWhiteSpace(aiOptions.TextModel.ApiKey))
+                client.DefaultRequestHeaders.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", aiOptions.TextModel.ApiKey);
         });
 
         return services;

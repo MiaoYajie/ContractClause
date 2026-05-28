@@ -11,4 +11,5 @@ public class QdrantOptions
 {
     public string Endpoint { get; set; } = "http://localhost:6333";
     public string ApiKey { get; set; } = string.Empty;
+    public int VectorSize { get; set; } = 1536;
 }

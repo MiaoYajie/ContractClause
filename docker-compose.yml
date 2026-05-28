@@ -16,7 +16,8 @@ services:
       - Ai__EmbeddingModel__ApiKey=${EMBEDDING_API_KEY:-}
       - Ai__TextModel__ApiKey=${TEXT_API_KEY:-}
       - FatianshiTemplateSync__Enabled=true
-      - FatianshiTemplateSync__IntervalHours=4
+      - FatianshiTemplateSync__IntervalHours=24
+      - FatianshiTemplateSync__BaseUrl=https://contentadmin.fatianshi.cn
       - FatianshiTemplateSync__ApiKey=${FATIANSHI_API_KEY:-}
     depends_on:
       db:

@@ -11,6 +11,11 @@ public class TemplateSyncStateConfiguration : IEntityTypeConfiguration<TemplateS
         builder.ToTable("template_sync_state");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.LastRunStatus).HasMaxLength(50);
-        builder.Property(x => x.LastRunErrors).HasColumnType("text[]");
+        builder.Property(x => x.LastRunErrors)
+            .HasColumnType("text[]")
+            .HasConversion(
+                v => v,
+                v => v ?? new List<string>())
+            .HasDefaultValueSql("'{}'");
     }
 }

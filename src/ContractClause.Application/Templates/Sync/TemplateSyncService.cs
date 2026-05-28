@@ -2,14 +2,17 @@ using ContractClause.Application.Common.Interfaces;
 using ContractClause.Application.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Text;
 
 namespace ContractClause.Application.Templates.Sync;
 
 public class TemplateSyncService(
     IFatianshiTemplateApiClient api,
-    ITemplateContentImporter importer,
     ITemplateRepository templates,
+    IVectorStore vectorStore,
+    IEmbeddingService embedding,
     ITemplateSyncStateRepository syncState,
+    ITemplateContentProcessingService contentProcessing,
     IOptions<FatianshiTemplateSyncOptions> options,
     ILogger<TemplateSyncService> logger) : ITemplateSyncService
 {
@@ -17,69 +20,92 @@ public class TemplateSyncService(
 
     public async Task<TemplateSyncRunResult> RunAsync(CancellationToken ct = default)
     {
-        var runStarted = DateTime.UtcNow;
-        var state = await syncState.GetOrCreateAsync(ct);
-        var watermark = state.LastSyncedAt;
+        //var maxSourceUpdatedAt = await templates.GetMaxSourceUpdatedAtAsync(ct);
+        var maxSourceUpdatedAt = await syncState.GetLastRunAtAsync(ct);
         var processed = 0;
         var skipped = 0;
         var failed = 0;
+        var contentProcessed = 0;
+        var contentFailed = 0;
         var errors = new List<string>();
+        var page = 0;
+        var stop = false;
 
-        var page = 1;
-        while (true)
+        while (!stop)
         {
-            var batch = await api.SearchUpdatedAsync(watermark, page, _options.PageSize, ct);
-            if (batch.Count == 0) break;
+            var batch = await api.FetchUpdatedTemplatesPageAsync(page, ct);
+            if (batch.Items.Count == 0)
+                break;
 
-            foreach (var item in batch)
+            foreach (var item in batch.Items)
             {
+                if (maxSourceUpdatedAt.HasValue && item.PublishedOn <= maxSourceUpdatedAt.Value)
+                {
+                    stop = true;
+                    break;
+                }
+
                 try
                 {
-                    var existing = await templates.GetByExternalIdAsync(item.Id, ct);
-                    var sourceUpdated = item.UpdatedAt;
-                    if (existing is not null && sourceUpdated.HasValue && existing.SourceUpdatedAt.HasValue &&
-                        existing.SourceUpdatedAt >= sourceUpdated)
+                    var existing = await templates.GetByIdAsync(item.Id, ct);
+                    var now = DateTime.UtcNow;
+                    var metadataChanged = false;
+
+                    if (existing is null)
+                    {
+                        var number = item.Number ?? await templates.GetNextNumberAsync(ct);
+                        var entity = TemplateMetadataMapper.ToNewEntity(item, number, now);
+                        await templates.AddAsync(entity, ct);
+                        await UpsertTemplateVectorAsync(entity, ct);
+                        processed++;
+                        metadataChanged = true;
+                        logger.LogInformation("已新增模板元数据 {TemplateId} ({Title})", item.Id, item.Title);
+                    }
+                    else if (existing.SourceUpdatedAt.HasValue && existing.SourceUpdatedAt >= item.PublishedOn)
                     {
                         skipped++;
-                        continue;
+                    }
+                    else
+                    {
+                        TemplateMetadataMapper.ApplyUpdate(existing, item, now);
+                        await templates.UpdateAsync(existing, ct);
+                        await UpsertTemplateVectorAsync(existing, ct);
+                        processed++;
+                        metadataChanged = true;
+                        logger.LogInformation("已更新模板元数据 {TemplateId} ({Title})", item.Id, item.Title);
                     }
 
-                    var detail = await api.GetTemplateAsync(item.Id, ct);
-                    sourceUpdated ??= detail.UpdatedAt;
-
-                    var type = detail.Type ?? item.Type ?? _options.DefaultType;
-                    var categories = detail.Categories.Count > 0 ? detail.Categories : item.Categories;
-                    var tags = detail.Tags.Count > 0 ? detail.Tags : item.Tags;
-
-                    await importer.ImportOrUpdateAsync(new TemplateImportRequest(
-                        detail.Html,
-                        detail.Title,
-                        type,
-                        categories,
-                        tags,
-                        _options.MarkAsOfficial,
-                        OwnerId: null,
-                        ExternalId: detail.Id,
-                        SourceUpdatedAt: sourceUpdated,
-                        ExistingTemplateId: existing?.Id), ct);
-
-                    processed++;
-                    logger.LogInformation("已同步法天使模板 {ExternalId} ({Title})", detail.Id, detail.Title);
+                    if (metadataChanged)
+                    {
+                        await templates.SaveChangesAsync(ct);
+                        var contentResult = await contentProcessing.ProcessAsync(item.Id, item.Version, ct);
+                        if (contentResult.Success)
+                            contentProcessed++;
+                        else
+                        {
+                            contentFailed++;
+                            if (!string.IsNullOrWhiteSpace(contentResult.Error))
+                                errors.Add($"模板 {item.Id} 内容处理: {contentResult.Error}");
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
                     failed++;
-                    var msg = $"模板 {item.Id}: {ex.Message}";
-                    errors.Add(msg);
-                    logger.LogError(ex, "同步法天使模板失败: {ExternalId}", item.Id);
+                    errors.Add($"模板 {item.Id}: {ex.Message}");
+                    logger.LogError(ex, "同步模板元数据失败: {TemplateId}", item.Id);
                 }
             }
 
-            if (batch.Count < _options.PageSize) break;
+            if (stop || batch.Items.Count < _options.PageSize)
+                break;
+
             page++;
         }
 
-        state.LastSyncedAt = runStarted;
+        await templates.SaveChangesAsync(ct);
+
+        var state = await syncState.GetOrCreateAsync(ct);
         state.LastRunAt = DateTime.UtcNow;
         state.LastRunStatus = failed > 0 ? "partial" : "completed";
         state.LastRunProcessed = processed;
@@ -87,9 +113,46 @@ public class TemplateSyncService(
         await syncState.SaveAsync(state, ct);
 
         logger.LogInformation(
-            "法天使模板同步完成: processed={Processed}, skipped={Skipped}, failed={Failed}",
-            processed, skipped, failed);
+            "法天使模板元数据同步完成: processed={Processed}, skipped={Skipped}, failed={Failed}, contentProcessed={ContentProcessed}, contentFailed={ContentFailed}, watermark={Watermark}",
+            processed, skipped, failed, contentProcessed, contentFailed, maxSourceUpdatedAt);
 
         return new TemplateSyncRunResult(processed, skipped, failed, errors);
+    }
+
+    private async Task UpsertTemplateVectorAsync(Domain.Templates.Template template, CancellationToken ct)
+    {
+        if (!await vectorStore.IsAvailableAsync(ct) || !embedding.IsConfigured)
+            return;
+
+        await vectorStore.EnsureCollectionsAsync(ct);
+        var textBuilder = new StringBuilder();
+        textBuilder.AppendLine($"标题：{template.Title}");
+        if (!string.IsNullOrEmpty(template.Alias))
+            textBuilder.AppendLine($"别名：{template.Alias}");
+        if (!string.IsNullOrEmpty(template.Summary))
+            textBuilder.AppendLine($"简介：{template.Summary}");
+        if (!string.IsNullOrEmpty(template.Scenarios))
+            textBuilder.AppendLine($"适用：{template.Scenarios}");
+        if (template.Categories != null && template.Categories.Any())
+            textBuilder.AppendLine($"合同分类：{string.Join(';', template.Categories)}");
+        if (template.Tags != null && template.Tags.Any())
+            textBuilder.AppendLine($"标签：{string.Join(' ', template.Tags)}");
+
+        var vector = await embedding.EmbedAsync(textBuilder.ToString(), ct);
+        if (vector is null) return;
+
+        await vectorStore.UpsertTemplateAsync(template.Id, vector, new Dictionary<string, object>
+        {
+            ["number"] = template.Number,
+            ["title"] = template.Title ?? string.Empty,
+            ["alias"] = template.Alias ?? string.Empty,
+            ["type"] = template.Type ?? string.Empty,
+            ["categories"] = template.Categories ?? [],
+            ["tags"] = template.Tags ?? [],
+            ["summary"] = template.Summary ?? string.Empty,
+            ["isOfficial"] = template.IsOfficial,
+            ["ownerId"] = template.OwnerId.HasValue ? template.OwnerId.Value.ToString() : string.Empty,
+
+        }, ct);
     }
 }

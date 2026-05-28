@@ -14,17 +14,27 @@ public class TemplateSyncStateRepository(AppDbContext db) : ITemplateSyncStateRe
         state = new TemplateSyncState
         {
             Id = TemplateSyncState.SingletonId,
+            LastRunErrors = [],
             UpdatedAt = DateTime.UtcNow
         };
         await db.TemplateSyncStates.AddAsync(state, ct);
-        await db.SaveChangesAsync(ct);
         return state;
     }
 
     public async Task SaveAsync(TemplateSyncState state, CancellationToken ct = default)
     {
         state.UpdatedAt = DateTime.UtcNow;
-        db.TemplateSyncStates.Update(state);
+        var entry = db.Entry(state);
+        if (entry.State == EntityState.Detached)
+            db.TemplateSyncStates.Update(state);
         await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<DateTime?> GetLastRunAtAsync(CancellationToken ct = default)
+    {
+        var max = await db.TemplateSyncStates
+            .Where(t=>t.LastRunAt != null)
+            .MaxAsync(t => (DateTime?)t.LastRunAt, ct);
+        return max;
     }
 }

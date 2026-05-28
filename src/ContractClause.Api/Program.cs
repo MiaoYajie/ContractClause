@@ -1,3 +1,4 @@
+using ContractClause.Api.Auth;
 using ContractClause.Api.BackgroundServices;
 using ContractClause.Api.Middleware;
 using ContractClause.Api.Services;
@@ -23,6 +24,7 @@ try
     builder.Services.AddScoped<ApiUserContext>();
     builder.Services.AddScoped<IUserContext>(sp => sp.GetRequiredService<ApiUserContext>());
 
+    builder.Services.AddAuthServerAuthentication(builder.Configuration);
     builder.Services.AddControllers();
     builder.Services.AddOpenApi();
     builder.Services.AddHealthChecks()
@@ -41,6 +43,8 @@ try
     app.MapOpenApi();
     app.MapScalarApiReference();
 
+    app.UseAuthentication();
+    app.UseAuthorization();
     app.UseMiddleware<ApiKeyAuthMiddleware>();
     app.MapControllers();
 

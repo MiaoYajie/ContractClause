@@ -16,13 +16,13 @@ public class TemplateRepository(AppDbContext db) : ITemplateRepository
     public Task<Template?> GetByIdWithOutlineAsync(Guid id, CancellationToken ct = default) =>
         db.Templates.Include(t => t.Outline).FirstOrDefaultAsync(t => t.Id == id && !t.IsDeleted, ct);
 
-    public Task<Template?> GetByExternalIdAsync(string externalId, CancellationToken ct = default) =>
-        db.Templates.AsNoTracking()
-            .FirstOrDefaultAsync(t => t.ExternalId == externalId && !t.IsDeleted, ct);
-
-    public Task<Template?> GetByExternalIdForUpdateAsync(string externalId, CancellationToken ct = default) =>
-        db.Templates.Include(t => t.Outline)
-            .FirstOrDefaultAsync(t => t.ExternalId == externalId && !t.IsDeleted, ct);
+    public async Task<DateTime?> GetMaxSourceUpdatedAtAsync(CancellationToken ct = default)
+    {
+        var max = await db.Templates
+            .Where(t => !t.IsDeleted && t.SourceUpdatedAt != null)
+            .MaxAsync(t => (DateTime?)t.SourceUpdatedAt, ct);
+        return max;
+    }
 
     public async Task<IReadOnlyList<Template>> SearchKeywordAsync(
         string query, string? type, IReadOnlyList<string>? categories, bool? isOfficial, Guid? ownerId,

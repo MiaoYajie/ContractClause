@@ -9,6 +9,12 @@ public class ClauseRepository(AppDbContext db) : IClauseRepository
     public Task<Clause?> GetByIdAsync(Guid id, CancellationToken ct = default) =>
         db.Clauses.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id && !c.IsDeleted, ct);
 
+    public async Task<IReadOnlyList<Clause>> ListByTemplateIdAsync(Guid templateId, CancellationToken ct = default) =>
+        await db.Clauses.AsNoTracking()
+            .Where(c => c.TemplateId == templateId && !c.IsDeleted)
+            .OrderBy(c => c.CreatedAt)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<Clause>> GetByTemplateAndOutlineItemAsync(
         Guid templateId, string? outlineItemId, string? clauseType, int skip, int take, CancellationToken ct = default)
     {

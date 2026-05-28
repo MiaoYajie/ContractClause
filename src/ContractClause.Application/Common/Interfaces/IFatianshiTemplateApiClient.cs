@@ -2,28 +2,23 @@ namespace ContractClause.Application.Common.Interfaces;
 
 public interface IFatianshiTemplateApiClient
 {
-    Task<IReadOnlyList<FatianshiTemplateListItem>> SearchUpdatedAsync(
-        DateTime? updatedAfter,
-        int page,
-        int pageSize,
-        CancellationToken ct = default);
-
-    Task<FatianshiTemplateDetail> GetTemplateAsync(string externalId, CancellationToken ct = default);
+    /// <summary>
+    /// 拉取推荐模板列表（按更新时间倒序）。page 从 0 开始。
+    /// </summary>
+    Task<FatianshiTemplatePage> FetchUpdatedTemplatesPageAsync(int page, CancellationToken ct = default);
 }
 
-public record FatianshiTemplateListItem(
-    string Id,
-    string Title,
-    string? Type,
-    IReadOnlyList<string> Categories,
-    IReadOnlyList<string> Tags,
-    DateTime? UpdatedAt);
+public record FatianshiTemplatePage(IReadOnlyList<FatianshiTemplateMetadata> Items, int Total);
 
-public record FatianshiTemplateDetail(
-    string Id,
+public record FatianshiTemplateMetadata(
+    Guid Id,
+    int? Number,
     string Title,
-    string Html,
-    string? Type,
+    string Alias,
+    string Type,
     IReadOnlyList<string> Categories,
     IReadOnlyList<string> Tags,
-    DateTime? UpdatedAt);
+    string Summary,
+    string Scenarios,
+    DateTime PublishedOn,
+    int Version);

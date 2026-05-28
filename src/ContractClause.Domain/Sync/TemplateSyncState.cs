@@ -10,6 +10,6 @@ public class TemplateSyncState
     public DateTime? LastRunAt { get; set; }
     public string? LastRunStatus { get; set; }
     public int LastRunProcessed { get; set; }
-    public List<string> LastRunErrors { get; set; } = [];
+    public List<string>? LastRunErrors { get; set; } = [];
     public DateTime UpdatedAt { get; set; }
 }

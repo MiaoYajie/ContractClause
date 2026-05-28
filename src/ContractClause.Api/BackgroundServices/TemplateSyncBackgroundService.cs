@@ -15,12 +15,12 @@ public class TemplateSyncBackgroundService(
     {
         if (!_options.Enabled)
         {
-            logger.LogInformation("法天使模板同步已禁用 (FatianshiTemplateSync:Enabled=false)");
+            logger.LogInformation("法天使模板元数据同步已禁用 (FatianshiTemplateSync:Enabled=false)");
             return;
         }
 
         var interval = TimeSpan.FromHours(Math.Max(1, _options.IntervalHours));
-        logger.LogInformation("法天使模板同步已启动，间隔 {Hours} 小时", _options.IntervalHours);
+        logger.LogInformation("法天使模板元数据同步已启动，间隔 {Hours} 小时", _options.IntervalHours);
 
         using var timer = new PeriodicTimer(interval);
         do
@@ -40,7 +40,7 @@ public class TemplateSyncBackgroundService(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogError(ex, "法天使模板同步任务异常");
+            logger.LogError(ex, "法天使模板元数据同步任务异常");
         }
     }
 }

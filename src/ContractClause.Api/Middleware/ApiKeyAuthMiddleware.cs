@@ -17,8 +17,7 @@ public class ApiKeyAuthMiddleware(RequestDelegate next)
     public async Task InvokeAsync(HttpContext context, IApiKeyRepository apiKeys, ApiUserContext userContext)
     {
         var path = context.Request.Path.Value ?? string.Empty;
-        if (path.StartsWith("/api/v1/apikeys", StringComparison.OrdinalIgnoreCase) &&
-            HttpMethods.IsPost(context.Request.Method))
+        if (path.StartsWith("/api/v1/apikeys", StringComparison.OrdinalIgnoreCase))
         {
             await next(context);
             return;

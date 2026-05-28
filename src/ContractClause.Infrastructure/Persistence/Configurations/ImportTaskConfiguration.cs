@@ -11,6 +11,11 @@ public class ImportTaskConfiguration : IEntityTypeConfiguration<ImportTask>
         builder.ToTable("import_tasks");
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Status).HasMaxLength(50);
-        builder.Property(x => x.Errors).HasColumnType("text[]");
+        builder.Property(x => x.Errors)
+            .HasColumnType("text[]")
+            .HasConversion(
+                v => v,
+                v => v ?? new List<string>())
+            .HasDefaultValueSql("'{}'");
     }
 }

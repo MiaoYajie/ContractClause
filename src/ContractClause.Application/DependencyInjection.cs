@@ -1,6 +1,7 @@
 using ContractClause.Application.Common.Behaviors;
 using ContractClause.Application.Common.Interfaces;
 using ContractClause.Application.Templates;
+using ContractClause.Application.Templates.Processing;
 using ContractClause.Application.Templates.Sync;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -18,6 +19,7 @@ public static class DependencyInjection
 
         services.AddScoped<ITemplateContentImporter, TemplateContentImporter>();
         services.AddScoped<ITemplateSyncService, TemplateSyncService>();
+        services.AddScoped<ITemplateContentProcessingService, TemplateContentProcessingService>();
 
         return services;
     }

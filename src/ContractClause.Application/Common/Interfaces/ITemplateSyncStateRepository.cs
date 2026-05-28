@@ -6,4 +6,5 @@ public interface ITemplateSyncStateRepository
 {
     Task<TemplateSyncState> GetOrCreateAsync(CancellationToken ct = default);
     Task SaveAsync(TemplateSyncState state, CancellationToken ct = default);
+    Task<DateTime?> GetLastRunAtAsync(CancellationToken ct = default);
 }

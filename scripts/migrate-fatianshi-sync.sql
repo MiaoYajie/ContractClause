@@ -1,9 +1,12 @@
--- 已有数据库需手动执行（EnsureCreated 不会自动加列）
-ALTER TABLE templates ADD COLUMN IF NOT EXISTS "ContentHtml" text NOT NULL DEFAULT '';
-ALTER TABLE templates ADD COLUMN IF NOT EXISTS "ExternalId" character varying(128);
-ALTER TABLE templates ADD COLUMN IF NOT EXISTS "SourceUpdatedAt" timestamp with time zone;
+-- 模板元数据同步：已有库结构迁移（EnsureCreated 不会自动变更）
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS "Alias" character varying(500) NOT NULL DEFAULT '';
+ALTER TABLE templates ADD COLUMN IF NOT EXISTS "SourceUpdatedAt" timestamp with time zone NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS "IX_templates_ExternalId" ON templates ("ExternalId");
+ALTER TABLE templates DROP COLUMN IF EXISTS "ContentHtml";
+ALTER TABLE templates DROP COLUMN IF EXISTS "ContentMarkdown";
+ALTER TABLE templates DROP COLUMN IF EXISTS "ExternalId";
+
+DROP INDEX IF EXISTS "IX_templates_ExternalId";
 
 CREATE TABLE IF NOT EXISTS template_sync_state (
     "Id" integer NOT NULL PRIMARY KEY,
@@ -15,6 +18,8 @@ CREATE TABLE IF NOT EXISTS template_sync_state (
     "UpdatedAt" timestamp with time zone NOT NULL
 );
 
-INSERT INTO template_sync_state ("Id", "UpdatedAt")
-VALUES (1, NOW() AT TIME ZONE 'utc')
+INSERT INTO template_sync_state ("Id", "LastRunErrors", "UpdatedAt")
+VALUES (1, '{}', NOW() AT TIME ZONE 'utc')
 ON CONFLICT ("Id") DO NOTHING;
+
+UPDATE template_sync_state SET "LastRunErrors" = '{}' WHERE "LastRunErrors" IS NULL;
